@@ -15,6 +15,7 @@ export default function ConvertPage() {
   const [uploading, setUploading] = useState(false);
   const [params, setParams] = useState<ConvertParams>({
     colorCount: 16,
+    simplifyColors: 32,
     mode: 'color',
     denoise: true,
     sharpen: true,
@@ -40,6 +41,7 @@ export default function ConvertPage() {
     form.append('file', file);
     form.append('color_count', String(params.colorCount));
     form.append('mode', params.mode);
+    form.append('simplify_colors', String(params.simplifyColors));
     form.append('denoise', String(params.denoise));
     form.append('sharpen', String(params.sharpen));
     form.append('transparent_bg', String(params.transparentBg));

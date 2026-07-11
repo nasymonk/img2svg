@@ -1,5 +1,6 @@
 export interface ConvertParams {
   colorCount: number;
+  simplifyColors: number; // 色彩简化: 0 关闭, 8/16/32/64 颜色数
   mode: 'color' | 'binary';
   denoise: boolean;
   sharpen: boolean;
@@ -28,6 +29,20 @@ export default function ParamsPanel({ params, onChange, disabled }: Props) {
             disabled={params.mode === 'binary' || disabled}
             className="w-full accent-primary"
           />
+        </div>
+        <div>
+          <label className="text-text-secondary block mb-1">
+            色彩简化: {params.simplifyColors === 0 ? '关闭' : params.simplifyColors}
+          </label>
+          <input
+            type="range" min={0} max={64} step={8} value={params.simplifyColors}
+            onChange={(e) => update('simplifyColors', +e.target.value)}
+            disabled={disabled}
+            className="w-full accent-primary"
+          />
+          <p className="text-text-secondary/60 text-xs mt-0.5">
+            减少 AI 图中的杂色，让输出更干净
+          </p>
         </div>
         <div>
           <label className="text-text-secondary block mb-1">模式</label>

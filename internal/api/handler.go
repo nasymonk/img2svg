@@ -151,6 +151,16 @@ func (h *Handler) UploadConvert(w http.ResponseWriter, r *http.Request) {
 
 	// 解析预处理参数
 	prepipe := preprocess.DefaultPipeline()
+	if v := r.FormValue("simplify_colors"); v != "" {
+		var n int
+		fmt.Sscanf(v, "%d", &n)
+		if n == 0 {
+			prepipe.Quantize = false
+		} else if n >= 2 && n <= 256 {
+			prepipe.Quantize = true
+			prepipe.MaxColors = n
+		}
+	}
 	if v := r.FormValue("denoise"); v == "false" {
 		prepipe.Denoise = false
 	}

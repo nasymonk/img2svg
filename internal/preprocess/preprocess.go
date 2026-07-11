@@ -163,8 +163,8 @@ func DefaultPipeline() Pipeline {
 		Denoise:    true,
 		Sharpen:    true,
 		SharpenStr: 0.3,
-		Quantize:   false,
-		MaxColors:  16,
+		Quantize:   true,
+		MaxColors:  32,
 		TransBG:    false,
 	}
 }
