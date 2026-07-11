@@ -78,10 +78,12 @@ func (s *Service) Convert(inputPath string, _ Params) (string, error) {
 		svgPath := filepath.Join(s.dataDir, "tmp", fmt.Sprintf("%s_layer_%d.svg", base, i))
 		hex := rgbToHex(c)
 
-		// 生成黑白 mask（该颜色=黑，其余=白，potrace 描黑区域）
+		// 生成黑白 mask + morphology smooth 消除锯齿
 		cmd := exec.Command("convert", workPath,
 			"-fill", "black", "-fuzz", "0%", "-opaque", hex,
-			"-fill", "white", "+opaque", "black", maskPath,
+			"-fill", "white", "+opaque", "black",
+			"-morphology", "Smooth", "Octagon:3",
+			maskPath,
 		)
 		if out, err := cmd.CombinedOutput(); err != nil {
 			return "", fmt.Errorf("mask 失败: %w, %s", err, string(out))
