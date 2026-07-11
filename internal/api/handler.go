@@ -25,7 +25,6 @@ import (
 	"github.com/nasymonk/img2svg/internal/converter"
 	"github.com/nasymonk/img2svg/internal/export"
 	"github.com/nasymonk/img2svg/internal/models"
-	"github.com/nasymonk/img2svg/internal/preprocess"
 	"github.com/nasymonk/img2svg/internal/storage"
 )
 
@@ -124,42 +123,6 @@ func (h *Handler) UploadConvert(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// 解析矢量化参数
-	params := converter.DefaultParams()
-	if v := r.FormValue("color_count"); v != "" {
-		fmt.Sscanf(v, "%d", &params.ColorCount)
-	}
-	if v := r.FormValue("mode"); v == "binary" {
-		params.Mode = "binary"
-	}
-
-	// 解析抗锯齿参数：映射 UI 值为 median 半径 + 可选 posterize
-	// 0=关闭, 8=轻度, 16=中度(默认), 32=强力, 64=极致(含 posterize)
-	medianRadius := 2     // 默认 median 半径
-	posterizeLevels := 0  // 默认不 posterize
-	if v := r.FormValue("simplify_colors"); v != "" {
-		var n int
-		fmt.Sscanf(v, "%d", &n)
-		switch {
-		case n == 0:
-			medianRadius = 0
-		case n <= 8:
-			medianRadius = 1
-		case n <= 16:
-			medianRadius = 2
-		case n <= 32:
-			medianRadius = 3
-		default: // 64: 最强 anti-aliasing + posterize
-			medianRadius = 3
-			posterizeLevels = 5
-		}
-	}
-
-	if err := params.Validate(); err != nil {
-		writeJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
-		return
-	}
-
 	taskID := genID()
 	inputPath := filepath.Join(h.cfg.DataDir, "tmp", taskID+".png")
 	os.MkdirAll(filepath.Dir(inputPath), 0755)
@@ -176,7 +139,6 @@ func (h *Handler) UploadConvert(w http.ResponseWriter, r *http.Request) {
 	}
 	dst.Close()
 
-	// 验证图片可解码
 	f, err := os.Open(inputPath)
 	if err != nil {
 		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "读取文件失败"})
@@ -189,34 +151,7 @@ func (h *Handler) UploadConvert(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// ImageMagick: median 消除抗锯齿, posterize 减少杂色（仅最高档）
-	workPath := inputPath
-	if preprocess.IsImageMagickAvailable() {
-		prev := inputPath
-		step := 0
-		// 第一步：median 去抗锯齿
-		if medianRadius > 0 {
-			step++
-			nextPath := filepath.Join(h.cfg.DataDir, "tmp", fmt.Sprintf("%s_m%d.png", taskID, step))
-			if err := preprocess.RemoveAntialiasing(prev, nextPath, medianRadius); err != nil {
-				log.Printf("median warning: %v", err)
-			} else {
-				prev = nextPath
-				workPath = nextPath
-			}
-		}
-		// 第二步：posterize（仅极致档）
-		if posterizeLevels > 0 {
-			step++
-			nextPath := filepath.Join(h.cfg.DataDir, "tmp", fmt.Sprintf("%s_p%d.png", taskID, step))
-			if err := preprocess.Posterize(prev, nextPath, posterizeLevels); err != nil {
-				log.Printf("posterize warning: %v", err)
-			} else {
-				workPath = nextPath
-			}
-		}
-	}
-
+	params := converter.DefaultParams()
 	task := &models.ConvertTask{
 		ID:           taskID,
 		UserID:       user.Username,
@@ -230,7 +165,7 @@ func (h *Handler) UploadConvert(w http.ResponseWriter, r *http.Request) {
 		log.Printf("create task error: %v", err)
 	}
 
-	go h.doConvert(taskID, workPath, params)
+	go h.doConvert(taskID, inputPath, params)
 	writeJSON(w, http.StatusCreated, map[string]string{"id": taskID, "status": "running"})
 }
 
@@ -327,13 +262,11 @@ func (h *Handler) History(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) Health(w http.ResponseWriter, r *http.Request) {
-	vtracerOK := h.converter.CheckVtracer() == nil
-	imOK := preprocess.IsImageMagickAvailable()
+	ok := h.converter.CheckVtracer() == nil
 	writeJSON(w, http.StatusOK, map[string]interface{}{
-		"status":    "ok",
-		"vtracer":   vtracerOK,
-		"imagemagick": imOK,
-		"time":      time.Now().Format(time.RFC3339),
+		"status": "ok",
+		"ready":  ok,
+		"time":   time.Now().Format(time.RFC3339),
 	})
 }
 
