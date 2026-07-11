@@ -99,33 +99,38 @@ func laplacian(img image.Image, x, y int, strength float64) (uint8, uint8, uint8
 	return uint8(rSum), uint8(gSum), uint8(bSum)
 }
 
-// Quantize 色彩量化，保护白色/浅色背景不被压暗
+// Quantize 色彩量化，四舍五入取最近色，白色自然保留
 func Quantize(img image.Image, maxColors int) image.Image {
 	bounds := img.Bounds()
 	out := image.NewRGBA(bounds)
-	div := 256 / int(math.Sqrt(float64(maxColors)))
+	div := 256.0 / math.Sqrt(float64(maxColors))
 	if div < 1 {
 		div = 1
 	}
-	const whiteThreshold = 240 // 高于此值的通道视为"白色区域"，不量化
 	for y := bounds.Min.Y; y < bounds.Max.Y; y++ {
 		for x := bounds.Min.X; x < bounds.Max.X; x++ {
 			r, g, b, a := img.At(x, y).RGBA()
-			rr, gg, bb := uint8(r>>8), uint8(g>>8), uint8(b>>8)
-			// 接近白色的像素保持原样，避免白底变灰
-			if rr > whiteThreshold && gg > whiteThreshold && bb > whiteThreshold {
-				out.Set(x, y, &color.RGBA{rr, gg, bb, uint8(a >> 8)})
-			} else {
-				out.Set(x, y, &color.RGBA{
-					uint8((int(rr) / div) * div),
-					uint8((int(gg) / div) * div),
-					uint8((int(bb) / div) * div),
-					uint8(a >> 8),
-				})
-			}
+			out.Set(x, y, &color.RGBA{
+				quantizeChannel(uint8(r>>8), div),
+				quantizeChannel(uint8(g>>8), div),
+				quantizeChannel(uint8(b>>8), div),
+				uint8(a >> 8),
+			})
 		}
 	}
 	return out
+}
+
+// quantizeChannel 四舍五入到最近的量化台阶，并 clamp 到 0-255
+func quantizeChannel(v uint8, div float64) uint8 {
+	q := math.Round(float64(v)/div) * div
+	if q > 255 {
+		return 255
+	}
+	if q < 0 {
+		return 0
+	}
+	return uint8(q)
 }
 
 // WhiteToTransparent 白底转透明
@@ -167,8 +172,8 @@ type Pipeline struct {
 
 func DefaultPipeline() Pipeline {
 	return Pipeline{
-		Denoise:    true,
-		Sharpen:    true,
+		Denoise:    false,
+		Sharpen:    false,
 		SharpenStr: 0.3,
 		Quantize:   true,
 		MaxColors:  32,
