@@ -1,10 +1,7 @@
 export interface ConvertParams {
   colorCount: number;
-  simplifyColors: number; // 色彩简化: 0 关闭, 8/16/32/64 颜色数
+  simplifyColors: number;
   mode: 'color' | 'binary';
-  denoise: boolean;
-  sharpen: boolean;
-  transparentBg: boolean;
 }
 
 interface Props {
@@ -22,17 +19,18 @@ export default function ParamsPanel({ params, onChange, disabled }: Props) {
       <h3 className="text-sm font-medium text-text-secondary mb-3">转换参数</h3>
       <div className="grid grid-cols-2 md:grid-cols-3 gap-4 text-sm">
         <div>
-          <label className="text-text-secondary block mb-1">颜色数: {params.colorCount}</label>
+          <label className="text-text-secondary block mb-1">色彩精度: {params.colorCount}</label>
           <input
             type="range" min={2} max={64} value={params.colorCount}
             onChange={(e) => update('colorCount', +e.target.value)}
-            disabled={params.mode === 'binary' || disabled}
+            disabled={disabled}
             className="w-full accent-primary"
           />
+          <p className="text-text-secondary/60 text-xs mt-0.5">越高色彩越丰富</p>
         </div>
         <div>
           <label className="text-text-secondary block mb-1">
-            色彩简化: {params.simplifyColors === 0 ? '关闭' : params.simplifyColors}
+            抗锯齿: {params.simplifyColors === 0 ? '关闭' : params.simplifyColors}
           </label>
           <input
             type="range" min={0} max={64} step={8} value={params.simplifyColors}
@@ -41,7 +39,7 @@ export default function ParamsPanel({ params, onChange, disabled }: Props) {
             className="w-full accent-primary"
           />
           <p className="text-text-secondary/60 text-xs mt-0.5">
-            减少 AI 图中的杂色，让输出更干净
+            消除 AI 图的杂色和锯齿，越小越干净
           </p>
         </div>
         <div>
@@ -55,20 +53,6 @@ export default function ParamsPanel({ params, onChange, disabled }: Props) {
             <option value="color">彩色</option>
             <option value="binary">黑白</option>
           </select>
-        </div>
-        <div className="flex flex-col gap-1.5">
-          <label className="flex items-center gap-2 text-text cursor-pointer">
-            <input type="checkbox" checked={params.denoise} onChange={(e) => update('denoise', e.target.checked)} className="accent-primary" disabled={disabled} />
-            去噪
-          </label>
-          <label className="flex items-center gap-2 text-text cursor-pointer">
-            <input type="checkbox" checked={params.sharpen} onChange={(e) => update('sharpen', e.target.checked)} className="accent-primary" disabled={disabled} />
-            锐化
-          </label>
-          <label className="flex items-center gap-2 text-text cursor-pointer">
-            <input type="checkbox" checked={params.transparentBg} onChange={(e) => update('transparentBg', e.target.checked)} className="accent-primary" disabled={disabled} />
-            透明背景
-          </label>
         </div>
       </div>
     </div>

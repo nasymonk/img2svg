@@ -17,9 +17,6 @@ export default function ConvertPage() {
     colorCount: 16,
     simplifyColors: 32,
     mode: 'color',
-    denoise: false,
-    sharpen: false,
-    transparentBg: false,
   });
 
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -42,9 +39,6 @@ export default function ConvertPage() {
     form.append('color_count', String(params.colorCount));
     form.append('mode', params.mode);
     form.append('simplify_colors', String(params.simplifyColors));
-    form.append('denoise', String(params.denoise));
-    form.append('sharpen', String(params.sharpen));
-    form.append('transparent_bg', String(params.transparentBg));
 
     try {
       const r = await fetch('/api/convert', { method: 'POST', body: form });
