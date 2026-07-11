@@ -23,10 +23,10 @@ func countColors(path string) (int, error) {
 	return strconv.Atoi(strings.TrimSpace(string(out)))
 }
 
-// extractColors 提取图中所有唯一颜色，按频率排序，过滤小色斑
+// extractColors 提取 posterize 后图片的颜色直方图，过滤小色斑
 func extractColors(path string) ([]RGB, error) {
+	// 直接统计当前图片颜色，不做二次量化
 	cmd := exec.Command("convert", path,
-		"-colors", "32",
 		"-depth", "8",
 		"-format", "%c", "histogram:info:",
 	)

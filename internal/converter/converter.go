@@ -42,13 +42,13 @@ func (s *Service) Convert(inputPath string, _ Params) (string, error) {
 	case colorCount < 64:
 		posterizeLevel = 0
 	case colorCount < 256:
-		posterizeLevel = 5
+		posterizeLevel = 6
 	case colorCount < 1024:
-		posterizeLevel = 4
+		posterizeLevel = 5
 	case colorCount < 4096:
-		posterizeLevel = 3
+		posterizeLevel = 4
 	default:
-		posterizeLevel = 2
+		posterizeLevel = 3
 	}
 
 	// 2. Posterize + median 去噪
@@ -80,10 +80,10 @@ func (s *Service) Convert(inputPath string, _ Params) (string, error) {
 		svgPath := filepath.Join(s.dataDir, "tmp", fmt.Sprintf("%s_layer_%d.svg", base, i))
 		hex := rgbToHex(c)
 
-		// 生成黑白 mask
+		// 生成黑白 mask（该颜色=黑，其余=白，potrace 描黑区域）
 		cmd := exec.Command("convert", workPath,
-			"-fill", "white", "-fuzz", "0%", "-opaque", hex,
-			"-fill", "black", "+opaque", "white", maskPath,
+			"-fill", "black", "-fuzz", "0%", "-opaque", hex,
+			"-fill", "white", "+opaque", "black", maskPath,
 		)
 		if out, err := cmd.CombinedOutput(); err != nil {
 			return "", fmt.Errorf("mask 失败: %w, %s", err, string(out))
