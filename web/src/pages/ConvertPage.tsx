@@ -16,7 +16,6 @@ export default function ConvertPage() {
   const [params, setParams] = useState<ConvertParams>({
     colorCount: 16,
     mode: 'color',
-    layerMode: 'split',
     denoise: true,
     sharpen: true,
     transparentBg: false,
@@ -41,7 +40,6 @@ export default function ConvertPage() {
     form.append('file', file);
     form.append('color_count', String(params.colorCount));
     form.append('mode', params.mode);
-    form.append('layer_mode', params.layerMode);
     form.append('denoise', String(params.denoise));
     form.append('sharpen', String(params.sharpen));
     form.append('transparent_bg', String(params.transparentBg));

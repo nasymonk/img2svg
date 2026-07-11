@@ -11,14 +11,12 @@ import (
 	"time"
 )
 
-// Params vtracer 转换参数
+// Params vtracer 转换参数（vtracer v0.6.4 支持的参数）
 type Params struct {
-	ColorCount      int     `json:"color_count"`       // 颜色数量 (2-64)
-	PathPrecision   int     `json:"path_precision"`    // 路径精度 (1-10)
-	CornerThreshold int     `json:"corner_threshold"`  // 角点阈值 (1-100)
-	Mode            string  `json:"mode"`              // "color" 彩色, "binary" 黑白
-	LayerMode       string  `json:"layer_mode"`        // "split" 分层, "flat" 单层
-	OutputScale     float64 `json:"output_scale"`      // 输出缩放 (0.5-4.0)
+	ColorCount      int    `json:"color_count"`      // 颜色数量 (2-64)
+	PathPrecision   int    `json:"path_precision"`   // 路径精度 (1-10)
+	CornerThreshold int    `json:"corner_threshold"` // 角点阈值 (1-100)
+	Mode            string `json:"mode"`             // "color" 彩色, "binary" 黑白
 }
 
 // Validate 校验参数合法性
@@ -32,14 +30,8 @@ func (p *Params) Validate() error {
 	if p.CornerThreshold < 1 || p.CornerThreshold > 100 {
 		return fmt.Errorf("角点阈值必须在 1-100 之间")
 	}
-	if p.OutputScale < 0.5 || p.OutputScale > 4.0 {
-		return fmt.Errorf("输出缩放必须在 0.5-4.0 之间")
-	}
 	if p.Mode != "color" && p.Mode != "binary" {
 		return fmt.Errorf("模式必须是 color 或 binary")
-	}
-	if p.LayerMode != "split" && p.LayerMode != "flat" {
-		return fmt.Errorf("图层模式必须是 split 或 flat")
 	}
 	return nil
 }
@@ -50,8 +42,6 @@ func DefaultParams() Params {
 		PathPrecision:   4,
 		CornerThreshold: 60,
 		Mode:            "color",
-		LayerMode:       "split",
-		OutputScale:     1.0,
 	}
 }
 
@@ -94,13 +84,6 @@ func (s *Service) Convert(inputPath string, p Params) (string, error) {
 
 	args = append(args, "--path_precision", fmt.Sprintf("%d", p.PathPrecision))
 	args = append(args, "--corner_threshold", fmt.Sprintf("%d", p.CornerThreshold))
-
-	if p.LayerMode == "split" {
-		args = append(args, "--layer_mode", "split")
-	}
-	if p.OutputScale != 1.0 {
-		args = append(args, "--output_scale", fmt.Sprintf("%.1f", p.OutputScale))
-	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), s.timeout)
 	defer cancel()

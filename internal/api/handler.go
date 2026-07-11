@@ -169,9 +169,6 @@ func (h *Handler) UploadConvert(w http.ResponseWriter, r *http.Request) {
 	if v := r.FormValue("mode"); v == "binary" {
 		params.Mode = "binary"
 	}
-	if v := r.FormValue("layer_mode"); v == "flat" {
-		params.LayerMode = "flat"
-	}
 
 	// 校验参数
 	if err := params.Validate(); err != nil {
