@@ -51,15 +51,15 @@ func extractColors(path string) ([]RGB, error) {
 		if len(fields) == 0 {
 			continue
 		}
-		n, err := strconv.Atoi(fields[0])
+		n, err := strconv.Atoi(strings.TrimSuffix(fields[0], ":"))
 		if err != nil {
 			continue
 		}
 		hex := line[idx : idx+7]
 		c := hexToRGB(hex)
 
-		// 跳过白色背景和极小色斑 (< 200 像素)
-		if isNearWhite(c) || n < 200 {
+		// 跳过白色/浅灰背景和极小色斑
+		if isNearWhite(c) || n < 100 {
 			continue
 		}
 		colors = append(colors, colorCount{c, n})
@@ -104,32 +104,18 @@ func isNearWhite(c RGB) bool {
 	return c.R > 245 && c.G > 245 && c.B > 245
 }
 
-// extractPathElements 从 potrace SVG 中提取 <path> 元素
+// extractPathElements 从 potrace SVG 中提取 <g> 组（含 fill 属性）
 func extractPathElements(svg string) string {
-	var paths []string
-	lines := strings.Split(svg, "\n")
-	inPath := false
-	var pathBuf strings.Builder
-
-	for _, line := range lines {
-		trimmed := strings.TrimSpace(line)
-		if strings.HasPrefix(trimmed, "<path ") {
-			inPath = true
-			pathBuf.Reset()
-			pathBuf.WriteString(trimmed)
-			if strings.Contains(trimmed, "/>") {
-				paths = append(paths, pathBuf.String())
-				inPath = false
-			}
-		} else if inPath {
-			pathBuf.WriteString(trimmed)
-			if strings.Contains(trimmed, "/>") || strings.Contains(trimmed, "</path>") {
-				paths = append(paths, pathBuf.String())
-				inPath = false
-			}
-		}
+	// potrace 输出格式: <g transform="..." fill="#..." stroke="none"><path .../></g>
+	start := strings.Index(svg, "<g ")
+	if start < 0 {
+		return ""
 	}
-	return strings.Join(paths, "\n")
+	end := strings.Index(svg, "</g>")
+	if end < 0 {
+		return ""
+	}
+	return svg[start : end+4] // 包含 <g>...</g>
 }
 
 // mergeSVG 合并多个图层为完整 SVG

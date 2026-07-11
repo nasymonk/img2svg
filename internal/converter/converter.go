@@ -45,10 +45,8 @@ func (s *Service) Convert(inputPath string, _ Params) (string, error) {
 		posterizeLevel = 6
 	case colorCount < 1024:
 		posterizeLevel = 5
-	case colorCount < 4096:
-		posterizeLevel = 4
 	default:
-		posterizeLevel = 3
+		posterizeLevel = 4
 	}
 
 	// 2. Posterize + median 去噪
@@ -90,7 +88,7 @@ func (s *Service) Convert(inputPath string, _ Params) (string, error) {
 		}
 
 		// potrace
-		cmd = exec.Command("potrace", maskPath, "-o", svgPath, "-b", "svg")
+		cmd = exec.Command("potrace", maskPath, "-o", svgPath, "-b", "svg", "--turdsize", "20")
 		out, _ := cmd.CombinedOutput()
 		_ = out
 		data, err := os.ReadFile(svgPath)
