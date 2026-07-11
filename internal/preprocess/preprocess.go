@@ -8,24 +8,30 @@ import (
 	"os/exec"
 )
 
-// Posterize 用 ImageMagick 做专业的颜色量化和去抗锯齿
-// levels: 颜色层级 (2-8, 越小越少颜色)
-// 内部调用: convert input -posterize levels -median 2 output
-func Posterize(inputPath, outputPath string, levels int) error {
-	// ImageMagick 的 posterize 做了正确的颜色聚类，median 消除抗锯齿
-	medianRadius := 2
-	if levels <= 2 {
-		medianRadius = 3 // 更激进去锯齿
-	}
-	cmd := exec.Command("convert",
-		inputPath,
-		"-posterize", fmt.Sprintf("%d", levels),
-		"-median", fmt.Sprintf("%d", medianRadius),
+// RemoveAntialiasing 用 ImageMagick median 滤波消除抗锯齿
+// radius: 滤波半径 (1-3)，越大越激进；不改变颜色，只消除过渡像素
+func RemoveAntialiasing(inputPath, outputPath string, radius int) error {
+	cmd := exec.Command("convert", inputPath,
+		"-median", fmt.Sprintf("%d", radius),
 		outputPath,
 	)
 	output, err := cmd.CombinedOutput()
 	if err != nil {
-		return fmt.Errorf("ImageMagick 处理失败: %w\n输出: %s", err, string(output))
+		return fmt.Errorf("ImageMagick median 失败: %w\n输出: %s", err, string(output))
+	}
+	return nil
+}
+
+// Posterize 减少颜色层级（可选），用于大量杂色时需要减少颜色
+// 不要和 median 一起用，分两步调
+func Posterize(inputPath, outputPath string, levels int) error {
+	cmd := exec.Command("convert", inputPath,
+		"-posterize", fmt.Sprintf("%d", levels),
+		outputPath,
+	)
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		return fmt.Errorf("ImageMagick posterize 失败: %w\n输出: %s", err, string(output))
 	}
 	return nil
 }

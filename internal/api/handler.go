@@ -133,21 +133,24 @@ func (h *Handler) UploadConvert(w http.ResponseWriter, r *http.Request) {
 		params.Mode = "binary"
 	}
 
-	// 解析 posterize 层级（映射 UI 色彩简化为 ImageMagick posterize levels）
-	posterizeLevels := 4 // 默认
+	// 解析抗锯齿参数：映射 UI 值为 median 半径 + 可选 posterize
+	// 0=关闭, 8=轻度, 16=中度(默认), 32=强力, 64=极致(含 posterize)
+	medianRadius := 2     // 默认 median 半径
+	posterizeLevels := 0  // 默认不 posterize
 	if v := r.FormValue("simplify_colors"); v != "" {
 		var n int
 		fmt.Sscanf(v, "%d", &n)
 		switch {
 		case n == 0:
-			posterizeLevels = 0
+			medianRadius = 0
 		case n <= 8:
-			posterizeLevels = 2
+			medianRadius = 1
 		case n <= 16:
-			posterizeLevels = 3
+			medianRadius = 2
 		case n <= 32:
-			posterizeLevels = 4
-		default:
+			medianRadius = 3
+		default: // 64: 最强 anti-aliasing + posterize
+			medianRadius = 3
 			posterizeLevels = 5
 		}
 	}
@@ -186,14 +189,31 @@ func (h *Handler) UploadConvert(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// ImageMagick: posterize + median 消除 AI 图杂色和抗锯齿
+	// ImageMagick: median 消除抗锯齿, posterize 减少杂色（仅最高档）
 	workPath := inputPath
-	if posterizeLevels > 0 && preprocess.IsImageMagickAvailable() {
-		cleanPath := filepath.Join(h.cfg.DataDir, "tmp", taskID+"_clean.png")
-		if err := preprocess.Posterize(inputPath, cleanPath, posterizeLevels); err != nil {
-			log.Printf("ImageMagick warning: %v", err)
-		} else {
-			workPath = cleanPath
+	if preprocess.IsImageMagickAvailable() {
+		prev := inputPath
+		step := 0
+		// 第一步：median 去抗锯齿
+		if medianRadius > 0 {
+			step++
+			nextPath := filepath.Join(h.cfg.DataDir, "tmp", fmt.Sprintf("%s_m%d.png", taskID, step))
+			if err := preprocess.RemoveAntialiasing(prev, nextPath, medianRadius); err != nil {
+				log.Printf("median warning: %v", err)
+			} else {
+				prev = nextPath
+				workPath = nextPath
+			}
+		}
+		// 第二步：posterize（仅极致档）
+		if posterizeLevels > 0 {
+			step++
+			nextPath := filepath.Join(h.cfg.DataDir, "tmp", fmt.Sprintf("%s_p%d.png", taskID, step))
+			if err := preprocess.Posterize(prev, nextPath, posterizeLevels); err != nil {
+				log.Printf("posterize warning: %v", err)
+			} else {
+				workPath = nextPath
+			}
 		}
 	}
 
