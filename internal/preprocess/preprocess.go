@@ -99,7 +99,7 @@ func laplacian(img image.Image, x, y int, strength float64) (uint8, uint8, uint8
 	return uint8(rSum), uint8(gSum), uint8(bSum)
 }
 
-// Quantize 简单色彩量化
+// Quantize 色彩量化，保护白色/浅色背景不被压暗
 func Quantize(img image.Image, maxColors int) image.Image {
 	bounds := img.Bounds()
 	out := image.NewRGBA(bounds)
@@ -107,15 +107,22 @@ func Quantize(img image.Image, maxColors int) image.Image {
 	if div < 1 {
 		div = 1
 	}
+	const whiteThreshold = 240 // 高于此值的通道视为"白色区域"，不量化
 	for y := bounds.Min.Y; y < bounds.Max.Y; y++ {
 		for x := bounds.Min.X; x < bounds.Max.X; x++ {
 			r, g, b, a := img.At(x, y).RGBA()
-			out.Set(x, y, &color.RGBA{
-				uint8((int(r>>8) / div) * div),
-				uint8((int(g>>8) / div) * div),
-				uint8((int(b>>8) / div) * div),
-				uint8(a >> 8),
-			})
+			rr, gg, bb := uint8(r>>8), uint8(g>>8), uint8(b>>8)
+			// 接近白色的像素保持原样，避免白底变灰
+			if rr > whiteThreshold && gg > whiteThreshold && bb > whiteThreshold {
+				out.Set(x, y, &color.RGBA{rr, gg, bb, uint8(a >> 8)})
+			} else {
+				out.Set(x, y, &color.RGBA{
+					uint8((int(rr) / div) * div),
+					uint8((int(gg) / div) * div),
+					uint8((int(bb) / div) * div),
+					uint8(a >> 8),
+				})
+			}
 		}
 	}
 	return out
