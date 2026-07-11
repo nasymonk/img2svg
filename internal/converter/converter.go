@@ -19,6 +19,8 @@ type Params struct {
 	PathPrecision   int    `json:"path_precision"`   // 路径精度 (1-10)
 	CornerThreshold int    `json:"corner_threshold"` // 角点阈值 (1-100)
 	Mode            string `json:"mode"`             // "color" 彩色, "binary" 黑白
+	CurveMode       string `json:"curve_mode"`       // "polygon" 多边形(默认), "spline" 平滑曲线
+	FilterSpeckle   int    `json:"filter_speckle"`   // 过滤小斑点 (0-100 px)
 }
 
 // colorPrecision 将 UI 颜色数映射为 vtracer color_precision (1-8)
@@ -57,6 +59,8 @@ func DefaultParams() Params {
 		PathPrecision:   4,
 		CornerThreshold: 60,
 		Mode:            "color",
+		CurveMode:       "polygon",
+		FilterSpeckle:   4,
 	}
 }
 
@@ -88,9 +92,13 @@ func (s *Service) Convert(inputPath string, p Params) (string, error) {
 	args := []string{
 		"--input", inputPath,
 		"--output", outPath,
-		"--mode", "spline",
+		"--mode", p.CurveMode,
 		"--path_precision", fmt.Sprintf("%d", p.PathPrecision),
 		"--corner_threshold", fmt.Sprintf("%d", p.CornerThreshold),
+	}
+
+	if p.FilterSpeckle > 0 {
+		args = append(args, "--filter_speckle", fmt.Sprintf("%d", p.FilterSpeckle))
 	}
 
 	if p.Mode == "binary" {
