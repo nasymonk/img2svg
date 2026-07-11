@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"math"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -11,12 +12,26 @@ import (
 	"time"
 )
 
-// Params vtracer 转换参数（vtracer v0.6.4 支持的参数）
+// Params vtracer 转换参数
+// UI 颜色数 2-64 映射到 vtracer color_precision (每通道位数, 1-8)
 type Params struct {
-	ColorCount      int    `json:"color_count"`      // 颜色数量 (2-64)
+	ColorCount      int    `json:"color_count"`      // UI 颜色数 (2-64)
 	PathPrecision   int    `json:"path_precision"`   // 路径精度 (1-10)
 	CornerThreshold int    `json:"corner_threshold"` // 角点阈值 (1-100)
 	Mode            string `json:"mode"`             // "color" 彩色, "binary" 黑白
+}
+
+// colorPrecision 将 UI 颜色数映射为 vtracer color_precision (1-8)
+func colorPrecision(uiCount int) int {
+	// ceil(log2(count)), clamped to [1,8]
+	p := int(math.Ceil(math.Log2(float64(uiCount))))
+	if p < 1 {
+		p = 1
+	}
+	if p > 8 {
+		p = 8
+	}
+	return p
 }
 
 // Validate 校验参数合法性
@@ -56,11 +71,11 @@ func New(vtracerPath, dataDir string) *Service {
 	return &Service{
 		vtracerPath: vtracerPath,
 		dataDir:     dataDir,
-		timeout:     120 * time.Second, // vtracer 最长运行 2 分钟
+		timeout:     120 * time.Second,
 	}
 }
 
-// Convert 执行矢量化，输入 PNG 路径，返回输出 SVG 路径
+// Convert 执行矢量化
 func (s *Service) Convert(inputPath string, p Params) (string, error) {
 	if err := p.Validate(); err != nil {
 		return "", err
@@ -73,17 +88,17 @@ func (s *Service) Convert(inputPath string, p Params) (string, error) {
 	args := []string{
 		"--input", inputPath,
 		"--output", outPath,
+		"--mode", "spline",
+		"--path_precision", fmt.Sprintf("%d", p.PathPrecision),
+		"--corner_threshold", fmt.Sprintf("%d", p.CornerThreshold),
 	}
 
 	if p.Mode == "binary" {
-		args = append(args, "--mode", "binary")
+		args = append(args, "--colormode", "bw")
 	} else {
-		args = append(args, "--mode", "color")
-		args = append(args, "--color_precision", fmt.Sprintf("%d", p.ColorCount))
+		args = append(args, "--colormode", "color")
+		args = append(args, "--color_precision", fmt.Sprintf("%d", colorPrecision(p.ColorCount)))
 	}
-
-	args = append(args, "--path_precision", fmt.Sprintf("%d", p.PathPrecision))
-	args = append(args, "--corner_threshold", fmt.Sprintf("%d", p.CornerThreshold))
 
 	ctx, cancel := context.WithTimeout(context.Background(), s.timeout)
 	defer cancel()
@@ -94,7 +109,6 @@ func (s *Service) Convert(inputPath string, p Params) (string, error) {
 		return "", fmt.Errorf("矢量化超时（>%v），请尝试降低颜色数或使用更小的图片", s.timeout)
 	}
 	if err != nil {
-		// vtracer 返回非零时仍可能生成了部分文件
 		if _, statErr := os.Stat(outPath); os.IsNotExist(statErr) {
 			return "", fmt.Errorf("vtracer 执行失败: %w\n输出: %s", err, string(output))
 		}
