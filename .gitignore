@@ -1,0 +1,16 @@
+# 二进制
+img2svg
+
+# 数据
+data/
+!data/.gitkeep
+
+# 前端
+web/node_modules/
+web/dist/
+
+# 环境
+.env
+
+# macOS
+.DS_Store

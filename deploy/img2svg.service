@@ -1,0 +1,15 @@
+[Unit]
+Description=img2svg - AI Image to SVG Converter
+After=network.target
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/srv/img2svg/current
+EnvironmentFile=/srv/img2svg/shared/.env
+ExecStart=/usr/local/bin/img2svg
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
