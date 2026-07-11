@@ -2,6 +2,7 @@ package main
 
 import (
 	"embed"
+	"io/fs"
 	"log"
 	"net/http"
 	"os"
@@ -15,7 +16,7 @@ import (
 	"github.com/nasymonk/img2svg/internal/storage"
 )
 
-//go:embed web/dist/*
+//go:embed web/dist
 var frontend embed.FS
 
 func main() {
@@ -53,7 +54,11 @@ func main() {
 	h.RegisterRoutes(mux)
 
 	// 静态文件（前端 SPA）
-	spa := spaHandler{fs: http.FS(frontend)}
+	frontendFS, err := fs.Sub(frontend, "web/dist")
+	if err != nil {
+		log.Fatalf("加载前端静态文件失败: %v", err)
+	}
+	spa := spaHandler{fs: http.FS(frontendFS)}
 	mux.HandleFunc("/", spa.ServeHTTP)
 
 	// 中间件链
