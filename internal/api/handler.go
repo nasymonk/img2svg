@@ -173,6 +173,12 @@ func (h *Handler) UploadConvert(w http.ResponseWriter, r *http.Request) {
 		params.LayerMode = "flat"
 	}
 
+	// 校验参数
+	if err := params.Validate(); err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
+		return
+	}
+
 	// 生成任务 ID 和文件路径
 	taskID := genID()
 	inputPath := filepath.Join(h.cfg.DataDir, "tmp", taskID+".png")
@@ -191,8 +197,12 @@ func (h *Handler) UploadConvert(w http.ResponseWriter, r *http.Request) {
 	}
 	dst.Close()
 
-	// 解码图像
-	dst.Seek(0, 0)
+	// 重新打开解码图像
+	dst, err = os.Open(inputPath)
+	if err != nil {
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "读取文件失败"})
+		return
+	}
 	img, _, err := image.Decode(dst)
 	dst.Close()
 	if err != nil {

@@ -6,6 +6,8 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"path/filepath"
+	"time"
 
 	"github.com/nasymonk/img2svg/internal/api"
 	"github.com/nasymonk/img2svg/internal/auth"
@@ -61,6 +63,9 @@ func main() {
 	spa := spaHandler{fs: http.FS(frontendFS)}
 	mux.HandleFunc("/", spa.ServeHTTP)
 
+	// 清理旧临时文件（24 小时前的）
+	go cleanupTempFiles(cfg.DataDir)
+
 	// 中间件链
 	handler := middleware.Logger(middleware.Secure(mux))
 
@@ -103,4 +108,28 @@ func (s *spaHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	f.Close()
 
 	http.FileServer(s.fs).ServeHTTP(w, r)
+}
+
+// cleanupTempFiles 清理超过 24 小时的临时文件
+func cleanupTempFiles(dataDir string) {
+	tmpDir := filepath.Join(dataDir, "tmp")
+	entries, err := os.ReadDir(tmpDir)
+	if err != nil {
+		return
+	}
+	cutoff := time.Now().Add(-24 * time.Hour)
+	n := 0
+	for _, e := range entries {
+		info, err := e.Info()
+		if err != nil {
+			continue
+		}
+		if info.ModTime().Before(cutoff) {
+			os.Remove(filepath.Join(tmpDir, e.Name()))
+			n++
+		}
+	}
+	if n > 0 {
+		log.Printf("清理了 %d 个过期临时文件", n)
+	}
 }

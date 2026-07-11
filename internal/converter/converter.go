@@ -1,22 +1,47 @@
 package converter
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"strings"
+	"time"
 )
 
 // Params vtracer 转换参数
 type Params struct {
-	ColorCount  int    `json:"color_count"`   // 颜色数量 (2-64)
-	PathPrecision int  `json:"path_precision"` // 路径精度 (0-100, vtracer 的 filter_speckle 阈值)
-	CornerThreshold int `json:"corner_threshold"` // 角点阈值 (0-100, 越大线条越平滑)
-	Mode         string `json:"mode"`          // "color" 彩色, "binary" 黑白
-	LayerMode    string `json:"layer_mode"`    // "split" 分层, "flat" 单层
-	OutputScale  float64 `json:"output_scale"` // 输出缩放
+	ColorCount      int     `json:"color_count"`       // 颜色数量 (2-64)
+	PathPrecision   int     `json:"path_precision"`    // 路径精度 (1-10)
+	CornerThreshold int     `json:"corner_threshold"`  // 角点阈值 (1-100)
+	Mode            string  `json:"mode"`              // "color" 彩色, "binary" 黑白
+	LayerMode       string  `json:"layer_mode"`        // "split" 分层, "flat" 单层
+	OutputScale     float64 `json:"output_scale"`      // 输出缩放 (0.5-4.0)
+}
+
+// Validate 校验参数合法性
+func (p *Params) Validate() error {
+	if p.ColorCount < 2 || p.ColorCount > 64 {
+		return fmt.Errorf("颜色数必须在 2-64 之间，当前: %d", p.ColorCount)
+	}
+	if p.PathPrecision < 1 || p.PathPrecision > 10 {
+		return fmt.Errorf("路径精度必须在 1-10 之间")
+	}
+	if p.CornerThreshold < 1 || p.CornerThreshold > 100 {
+		return fmt.Errorf("角点阈值必须在 1-100 之间")
+	}
+	if p.OutputScale < 0.5 || p.OutputScale > 4.0 {
+		return fmt.Errorf("输出缩放必须在 0.5-4.0 之间")
+	}
+	if p.Mode != "color" && p.Mode != "binary" {
+		return fmt.Errorf("模式必须是 color 或 binary")
+	}
+	if p.LayerMode != "split" && p.LayerMode != "flat" {
+		return fmt.Errorf("图层模式必须是 split 或 flat")
+	}
+	return nil
 }
 
 func DefaultParams() Params {
@@ -34,21 +59,25 @@ func DefaultParams() Params {
 type Service struct {
 	vtracerPath string
 	dataDir     string
+	timeout     time.Duration
 }
 
 func New(vtracerPath, dataDir string) *Service {
 	return &Service{
 		vtracerPath: vtracerPath,
 		dataDir:     dataDir,
+		timeout:     120 * time.Second, // vtracer 最长运行 2 分钟
 	}
 }
 
 // Convert 执行矢量化，输入 PNG 路径，返回输出 SVG 路径
 func (s *Service) Convert(inputPath string, p Params) (string, error) {
-	// 生成输出路径
+	if err := p.Validate(); err != nil {
+		return "", err
+	}
+
 	base := strings.TrimSuffix(filepath.Base(inputPath), filepath.Ext(inputPath))
 	outPath := filepath.Join(s.dataDir, "tmp", base+".svg")
-
 	os.MkdirAll(filepath.Dir(outPath), 0755)
 
 	args := []string{
@@ -56,7 +85,6 @@ func (s *Service) Convert(inputPath string, p Params) (string, error) {
 		"--output", outPath,
 	}
 
-	// 模式
 	if p.Mode == "binary" {
 		args = append(args, "--mode", "binary")
 	} else {
@@ -64,33 +92,28 @@ func (s *Service) Convert(inputPath string, p Params) (string, error) {
 		args = append(args, "--color_precision", fmt.Sprintf("%d", p.ColorCount))
 	}
 
-	// 路径精度
-	if p.PathPrecision > 0 {
-		args = append(args, "--path_precision", fmt.Sprintf("%d", p.PathPrecision))
-	}
+	args = append(args, "--path_precision", fmt.Sprintf("%d", p.PathPrecision))
+	args = append(args, "--corner_threshold", fmt.Sprintf("%d", p.CornerThreshold))
 
-	// 角点阈值
-	if p.CornerThreshold > 0 {
-		args = append(args, "--corner_threshold", fmt.Sprintf("%d", p.CornerThreshold))
-	}
-
-	// 分层模式
 	if p.LayerMode == "split" {
 		args = append(args, "--layer_mode", "split")
 	}
-
-	// 输出缩放
-	if p.OutputScale != 1.0 && p.OutputScale > 0 {
+	if p.OutputScale != 1.0 {
 		args = append(args, "--output_scale", fmt.Sprintf("%.1f", p.OutputScale))
 	}
 
-	cmd := exec.Command(s.vtracerPath, args...)
-	cmd.Stderr = nil
+	ctx, cancel := context.WithTimeout(context.Background(), s.timeout)
+	defer cancel()
+
+	cmd := exec.CommandContext(ctx, s.vtracerPath, args...)
 	output, err := cmd.CombinedOutput()
+	if ctx.Err() == context.DeadlineExceeded {
+		return "", fmt.Errorf("矢量化超时（>%v），请尝试降低颜色数或使用更小的图片", s.timeout)
+	}
 	if err != nil {
-		// vtracer 返回非零时仍然可能生成了文件
+		// vtracer 返回非零时仍可能生成了部分文件
 		if _, statErr := os.Stat(outPath); os.IsNotExist(statErr) {
-			return "", fmt.Errorf("vtracer 执行失败: %w, 输出: %s", err, string(output))
+			return "", fmt.Errorf("vtracer 执行失败: %w\n输出: %s", err, string(output))
 		}
 	}
 	return outPath, nil
@@ -99,12 +122,7 @@ func (s *Service) Convert(inputPath string, p Params) (string, error) {
 // CheckVtracer 检查 vtracer 是否可用
 func (s *Service) CheckVtracer() error {
 	cmd := exec.Command(s.vtracerPath, "--version")
-	out, err := cmd.Output()
-	if err != nil {
-		return fmt.Errorf("vtracer 不可用: %w", err)
-	}
-	_ = out
-	return nil
+	return cmd.Run()
 }
 
 func (p Params) ToJSON() string {

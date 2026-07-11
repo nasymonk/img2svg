@@ -7,15 +7,15 @@ import (
 	"encoding/hex"
 	"fmt"
 	"net/http"
+	"strings"
 
 	"github.com/nasymonk/img2svg/internal/models"
 	"golang.org/x/crypto/bcrypt"
 )
 
 const (
-	cookieName    = "img2svg_session"
-	cookieMaxAge  = 7 * 24 * 3600 // 7 天
-	sessionPrefix = "img2svg_"
+	cookieName   = "img2svg_session"
+	cookieMaxAge = 7 * 24 * 3600 // 7 天
 )
 
 type Service struct {
@@ -55,14 +55,16 @@ func (s *Service) VerifyPassword(username, password string) (*models.User, error
 }
 
 // SetSessionCookie 设置 session cookie
+// cookie 格式: token.username.signature
+// signature = sha256(token + "." + username + secret)
 func (s *Service) SetSessionCookie(w http.ResponseWriter, user *models.User) error {
 	token := generateToken()
-	// 签名: sha256(token + secret)
-	sig := sign(token, s.cookieSecret)
+	payload := token + "." + user.Username
+	sig := sign(payload, s.cookieSecret)
 
 	cookie := &http.Cookie{
 		Name:     cookieName,
-		Value:    fmt.Sprintf("%s.%s", token, sig),
+		Value:    payload + "." + sig,
 		Path:     "/",
 		Domain:   "",
 		MaxAge:   cookieMaxAge,
@@ -74,22 +76,25 @@ func (s *Service) SetSessionCookie(w http.ResponseWriter, user *models.User) err
 	return nil
 }
 
-// ValidateSession 从 cookie 验证 session，返回用户名
+// ValidateSession 从 cookie 验证 session，返回用户
 func (s *Service) ValidateSession(r *http.Request) (*models.User, error) {
 	cookie, err := r.Cookie(cookieName)
 	if err != nil {
 		return nil, fmt.Errorf("未登录")
 	}
-	token, sigValue := parseCookie(cookie.Value)
-	if token == "" || sigValue == "" {
+	parts := strings.SplitN(cookie.Value, ".", 3)
+	if len(parts) != 3 {
 		return nil, fmt.Errorf("无效 session")
 	}
-	if sign(token, s.cookieSecret) != sigValue {
+	token, username, sig := parts[0], parts[1], parts[2]
+	if token == "" || username == "" || sig == "" {
+		return nil, fmt.Errorf("无效 session")
+	}
+	payload := token + "." + username
+	if sign(payload, s.cookieSecret) != sig {
 		return nil, fmt.Errorf("session 签名无效")
 	}
-	// session 有效期依赖 cookie MaxAge，签名验证通过即可
-	// 不在这里查数据库（每次请求都查 trans db 太重），只验证签名
-	return &models.User{Username: sessionPrefix + token}, nil
+	return &models.User{Username: username}, nil
 }
 
 func (s *Service) ClearSessionCookie(w http.ResponseWriter) {
@@ -112,16 +117,7 @@ func generateToken() string {
 	return hex.EncodeToString(b)
 }
 
-func sign(token, secret string) string {
-	h := sha256.Sum256([]byte(token + secret))
+func sign(payload, secret string) string {
+	h := sha256.Sum256([]byte(payload + secret))
 	return hex.EncodeToString(h[:])
-}
-
-func parseCookie(value string) (token, sig string) {
-	for i := 0; i < len(value); i++ {
-		if value[i] == '.' {
-			return value[:i], value[i+1:]
-		}
-	}
-	return value, ""
 }

@@ -1,4 +1,4 @@
-import { useState, useCallback, useRef } from 'react';
+import { useState, useCallback, useRef, useEffect } from 'react';
 import FileUpload from '../components/FileUpload';
 import ParamsPanel from '../components/ParamsPanel';
 import PreviewPanel from '../components/PreviewPanel';
@@ -23,6 +23,15 @@ export default function ConvertPage() {
   });
 
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const mountedRef = useRef(true);
+
+  // 组件卸载时取消轮询
+  useEffect(() => {
+    return () => {
+      mountedRef.current = false;
+      if (pollRef.current) clearInterval(pollRef.current);
+    };
+  }, []);
 
   const handleUpload = useCallback(async (file: File) => {
     setUploading(true);
@@ -39,33 +48,44 @@ export default function ConvertPage() {
 
     try {
       const r = await fetch('/api/convert', { method: 'POST', body: form });
+      const d = await r.json().catch(() => ({}));
       if (!r.ok) {
-        const d = await r.json();
-        setTask({ id: '', status: 'failed', error: d.error || '上传失败' });
+        setTask({ id: '', status: 'failed', error: d.error || `服务器错误 (${r.status})` });
         setUploading(false);
         return;
       }
-      const data = await r.json();
-      const taskId: string = data.id;
+      const taskId: string = d.id;
+      if (!taskId) {
+        setTask({ id: '', status: 'failed', error: '服务器返回异常' });
+        setUploading(false);
+        return;
+      }
       setTask({ id: taskId, status: 'running' });
       setUploading(false);
 
       // 轮询状态
       pollRef.current = setInterval(async () => {
-        const sr = await fetch(`/api/convert/${taskId}/status`);
-        const sd = await sr.json();
-        const status: string = sd.status;
-        setTask((prev) => {
-          if (prev?.id !== taskId) return prev;
-          return { id: taskId, status, error: sd.error };
-        });
-        if (status === 'succeeded' || status === 'failed') {
-          if (pollRef.current) clearInterval(pollRef.current);
+        try {
+          const sr = await fetch(`/api/convert/${taskId}/status`);
+          const sd = await sr.json().catch(() => ({}));
+          if (!mountedRef.current) return;
+          const status: string = sd.status || 'running';
+          setTask((prev) => {
+            if (prev?.id !== taskId) return prev;
+            return { id: taskId, status, error: sd.error };
+          });
+          if (status === 'succeeded' || status === 'failed') {
+            if (pollRef.current) clearInterval(pollRef.current);
+          }
+        } catch {
+          // 轮询失败不中断，等下次重试
         }
       }, 500);
     } catch {
-      setTask({ id: '', status: 'failed', error: '网络错误' });
-      setUploading(false);
+      if (mountedRef.current) {
+        setTask({ id: '', status: 'failed', error: '网络错误，请检查连接后重试' });
+        setUploading(false);
+      }
     }
   }, [params]);
 
