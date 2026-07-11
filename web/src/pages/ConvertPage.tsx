@@ -17,8 +17,8 @@ export default function ConvertPage() {
     colorCount: 16,
     simplifyColors: 32,
     mode: 'color',
-    denoise: true,
-    sharpen: true,
+    denoise: false,
+    sharpen: false,
     transparentBg: false,
   });
 
