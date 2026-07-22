@@ -1,8 +1,6 @@
 import { Link, useLocation } from 'react-router-dom';
-import { useAuth } from '../hooks/useAuth';
 
 export default function Header() {
-  const { user, logout } = useAuth();
   const { pathname } = useLocation();
 
   return (
@@ -26,12 +24,6 @@ export default function Header() {
               历史
             </Link>
           </nav>
-        </div>
-        <div className="flex items-center gap-3 text-sm">
-          <span className="text-text-secondary">{user?.username}</span>
-          <button onClick={logout} className="text-text-secondary hover:text-text transition-colors">
-            登出
-          </button>
         </div>
       </div>
     </header>

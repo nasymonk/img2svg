@@ -65,7 +65,7 @@ jobs:
         run: |
           GOOS=linux GOARCH=amd64 go build -o img2svg .
 
-      - name: Deploy to server
+      - name: Deploy to ECS
         uses: appleboy/scp-action@v0.1.7
         with:
           host: ${{ secrets.IMG2SVG_SERVER }}

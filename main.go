@@ -10,7 +10,6 @@ import (
 	"time"
 
 	"github.com/nasymonk/img2svg/internal/api"
-	"github.com/nasymonk/img2svg/internal/auth"
 	"github.com/nasymonk/img2svg/internal/config"
 	"github.com/nasymonk/img2svg/internal/converter"
 	"github.com/nasymonk/img2svg/internal/export"
@@ -31,16 +30,6 @@ func main() {
 	}
 	defer store.Close()
 
-	// 认证（只读 trans 数据库）
-	if cfg.CookieSecret == "" {
-		log.Fatal("请设置 COOKIE_SECRET 环境变量（至少 32 字符）")
-	}
-	authSvc, err := auth.New(cfg.TransDBPath, cfg.CookieSecret)
-	if err != nil {
-		log.Fatalf("初始化认证失败: %v", err)
-	}
-	defer authSvc.Close()
-
 	// 转换器
 	convSvc := converter.New(cfg.VtracerPath, cfg.DataDir)
 	if err := convSvc.CheckVtracer(); err != nil {
@@ -51,7 +40,7 @@ func main() {
 	exportSvc := export.New(cfg.DataDir)
 
 	// API 路由
-	h := api.NewHandler(cfg, store, authSvc, convSvc, exportSvc)
+	h := api.NewHandler(cfg, store, convSvc, exportSvc)
 	mux := http.NewServeMux()
 	h.RegisterRoutes(mux)
 

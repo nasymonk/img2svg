@@ -23,19 +23,3 @@ func Secure(next http.Handler) http.Handler {
 		next.ServeHTTP(w, r)
 	})
 }
-
-// AuthRequired 要求登录
-func AuthRequired(authService interface {
-	ValidateSession(*http.Request) (interface{}, error)
-}) func(http.Handler) http.Handler {
-	return func(next http.Handler) http.Handler {
-		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			_, err := authService.ValidateSession(r)
-			if err != nil {
-				http.Error(w, `{"error":"未登录"}`, http.StatusUnauthorized)
-				return
-			}
-			next.ServeHTTP(w, r)
-		})
-	}
-}

@@ -20,7 +20,6 @@ import (
 	_ "golang.org/x/image/bmp"
 	_ "golang.org/x/image/webp"
 
-	"github.com/nasymonk/img2svg/internal/auth"
 	"github.com/nasymonk/img2svg/internal/config"
 	"github.com/nasymonk/img2svg/internal/converter"
 	"github.com/nasymonk/img2svg/internal/export"
@@ -31,79 +30,25 @@ import (
 type Handler struct {
 	cfg       *config.Config
 	store     *storage.Store
-	authSvc   *auth.Service
 	converter *converter.Service
 	exporter  *export.Service
 }
 
-func NewHandler(cfg *config.Config, store *storage.Store, authSvc *auth.Service, conv *converter.Service, exp *export.Service) *Handler {
-	return &Handler{cfg: cfg, store: store, authSvc: authSvc, converter: conv, exporter: exp}
+func NewHandler(cfg *config.Config, store *storage.Store, conv *converter.Service, exp *export.Service) *Handler {
+	return &Handler{cfg: cfg, store: store, converter: conv, exporter: exp}
 }
 
 func (h *Handler) RegisterRoutes(mux *http.ServeMux) {
-	mux.HandleFunc("POST /api/auth/login", h.Login)
-	mux.HandleFunc("POST /api/auth/logout", h.Logout)
-	mux.HandleFunc("GET /api/auth/me", h.Me)
-	mux.HandleFunc("POST /api/convert", h.authWrap(h.UploadConvert))
-	mux.HandleFunc("GET /api/convert/{id}/status", h.authWrap(h.ConvertStatus))
-	mux.HandleFunc("GET /api/convert/{id}/preview", h.authWrap(h.ConvertPreview))
-	mux.HandleFunc("GET /api/convert/{id}/source", h.authWrap(h.ConvertSource))
-	mux.HandleFunc("GET /api/export/{id}/{format}", h.authWrap(h.ExportDownload))
-	mux.HandleFunc("GET /api/history", h.authWrap(h.History))
+	mux.HandleFunc("POST /api/convert", h.UploadConvert)
+	mux.HandleFunc("GET /api/convert/{id}/status", h.ConvertStatus)
+	mux.HandleFunc("GET /api/convert/{id}/preview", h.ConvertPreview)
+	mux.HandleFunc("GET /api/convert/{id}/source", h.ConvertSource)
+	mux.HandleFunc("GET /api/export/{id}/{format}", h.ExportDownload)
+	mux.HandleFunc("GET /api/history", h.History)
 	mux.HandleFunc("GET /api/health", h.Health)
 }
 
-func (h *Handler) authWrap(fn http.HandlerFunc) http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		if _, err := h.authSvc.ValidateSession(r); err != nil {
-			writeJSON(w, http.StatusUnauthorized, map[string]string{"error": "未登录"})
-			return
-		}
-		fn(w, r)
-	}
-}
-
-func (h *Handler) Login(w http.ResponseWriter, r *http.Request) {
-	var req struct {
-		Username string `json:"username"`
-		Password string `json:"password"`
-	}
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "请求格式错误"})
-		return
-	}
-	user, err := h.authSvc.VerifyPassword(req.Username, req.Password)
-	if err != nil {
-		writeJSON(w, http.StatusUnauthorized, map[string]string{"error": err.Error()})
-		return
-	}
-	if err := h.authSvc.SetSessionCookie(w, user); err != nil {
-		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "session 设置失败"})
-		return
-	}
-	writeJSON(w, http.StatusOK, map[string]interface{}{
-		"username": user.Username,
-		"is_admin": user.IsAdmin,
-	})
-}
-
-func (h *Handler) Logout(w http.ResponseWriter, r *http.Request) {
-	h.authSvc.ClearSessionCookie(w)
-	writeJSON(w, http.StatusOK, map[string]string{"message": "已登出"})
-}
-
-func (h *Handler) Me(w http.ResponseWriter, r *http.Request) {
-	user, err := h.authSvc.ValidateSession(r)
-	if err != nil {
-		writeJSON(w, http.StatusUnauthorized, map[string]string{"error": "未登录"})
-		return
-	}
-	writeJSON(w, http.StatusOK, map[string]string{"username": user.Username})
-}
-
 func (h *Handler) UploadConvert(w http.ResponseWriter, r *http.Request) {
-	user, _ := h.authSvc.ValidateSession(r)
-
 	r.Body = http.MaxBytesReader(w, r.Body, 10<<20)
 	if err := r.ParseMultipartForm(10 << 20); err != nil {
 		writeJSON(w, http.StatusRequestEntityTooLarge, map[string]string{"error": "文件过大，最大 10MB"})
@@ -154,7 +99,6 @@ func (h *Handler) UploadConvert(w http.ResponseWriter, r *http.Request) {
 	params := converter.DefaultParams()
 	task := &models.ConvertTask{
 		ID:           taskID,
-		UserID:       user.Username,
 		OriginalName: header.Filename,
 		InputPath:    inputPath,
 		Status:       "running",
@@ -249,8 +193,7 @@ func (h *Handler) ExportDownload(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) History(w http.ResponseWriter, r *http.Request) {
-	user, _ := h.authSvc.ValidateSession(r)
-	tasks, err := h.store.ListTasks(user.Username, 20)
+	tasks, err := h.store.ListTasks(20)
 	if err != nil {
 		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
 		return

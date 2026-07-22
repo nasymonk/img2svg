@@ -14,7 +14,7 @@ type Store struct {
 	db *sql.DB
 }
 
-// 初始化自己的业务数据库
+// 初始化业务数据库
 func New(dataDir string) (*Store, error) {
 	dbPath := filepath.Join(dataDir, "img2svg.db")
 	os.MkdirAll(filepath.Dir(dbPath), 0755)
@@ -36,7 +36,6 @@ func (s *Store) migrate() error {
 	_, err := s.db.Exec(`
 		CREATE TABLE IF NOT EXISTS convert_tasks (
 			id TEXT PRIMARY KEY,
-			user_id TEXT NOT NULL,
 			original_name TEXT NOT NULL,
 			input_path TEXT NOT NULL,
 			output_path TEXT DEFAULT '',
@@ -47,7 +46,6 @@ func (s *Store) migrate() error {
 			created_at DATETIME DEFAULT (datetime('now')),
 			finished_at DATETIME
 		);
-		CREATE INDEX IF NOT EXISTS idx_tasks_user_id ON convert_tasks(user_id);
 		CREATE INDEX IF NOT EXISTS idx_tasks_created ON convert_tasks(created_at DESC);
 	`)
 	return err
@@ -55,9 +53,9 @@ func (s *Store) migrate() error {
 
 func (s *Store) CreateTask(t *models.ConvertTask) error {
 	_, err := s.db.Exec(
-		`INSERT INTO convert_tasks (id, user_id, original_name, input_path, output_path, status, progress, params, created_at)
-		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))`,
-		t.ID, t.UserID, t.OriginalName, t.InputPath, t.OutputPath, t.Status, t.Progress, t.Params,
+		`INSERT INTO convert_tasks (id, original_name, input_path, output_path, status, progress, params, created_at)
+		 VALUES (?, ?, ?, ?, ?, ?, ?, datetime('now'))`,
+		t.ID, t.OriginalName, t.InputPath, t.OutputPath, t.Status, t.Progress, t.Params,
 	)
 	return err
 }
@@ -76,9 +74,9 @@ func (s *Store) GetTask(id string) (*models.ConvertTask, error) {
 	t := &models.ConvertTask{}
 	var finished sql.NullTime
 	err := s.db.QueryRow(
-		`SELECT id, user_id, original_name, input_path, output_path, status, progress, params, error_message, created_at, finished_at
+		`SELECT id, original_name, input_path, output_path, status, progress, params, error_message, created_at, finished_at
 		 FROM convert_tasks WHERE id=?`, id,
-	).Scan(&t.ID, &t.UserID, &t.OriginalName, &t.InputPath, &t.OutputPath,
+	).Scan(&t.ID, &t.OriginalName, &t.InputPath, &t.OutputPath,
 		&t.Status, &t.Progress, &t.Params, &t.ErrorMessage, &t.CreatedAt, &finished)
 	if err != nil {
 		return nil, err
@@ -89,13 +87,13 @@ func (s *Store) GetTask(id string) (*models.ConvertTask, error) {
 	return t, nil
 }
 
-func (s *Store) ListTasks(userID string, limit int) ([]models.ConvertTask, error) {
+func (s *Store) ListTasks(limit int) ([]models.ConvertTask, error) {
 	if limit <= 0 {
 		limit = 20
 	}
 	rows, err := s.db.Query(
-		`SELECT id, user_id, original_name, input_path, output_path, status, progress, params, error_message, created_at, finished_at
-		 FROM convert_tasks WHERE user_id=? ORDER BY created_at DESC LIMIT ?`, userID, limit,
+		`SELECT id, original_name, input_path, output_path, status, progress, params, error_message, created_at, finished_at
+		 FROM convert_tasks ORDER BY created_at DESC LIMIT ?`, limit,
 	)
 	if err != nil {
 		return nil, err
@@ -106,7 +104,7 @@ func (s *Store) ListTasks(userID string, limit int) ([]models.ConvertTask, error
 	for rows.Next() {
 		t := models.ConvertTask{}
 		var finished sql.NullTime
-		if err := rows.Scan(&t.ID, &t.UserID, &t.OriginalName, &t.InputPath, &t.OutputPath,
+		if err := rows.Scan(&t.ID, &t.OriginalName, &t.InputPath, &t.OutputPath,
 			&t.Status, &t.Progress, &t.Params, &t.ErrorMessage, &t.CreatedAt, &finished); err != nil {
 			return nil, err
 		}
