@@ -98,10 +98,11 @@ jobs:
             chmod +x "$RELEASE/img2svg"
             # 创建或更新 symlink
             ln -sfn "$RELEASE" /srv/img2svg/current
-            # 复制二进制到 systemd 期望的位置
+            # 先停止服务，避免覆盖运行中的二进制时报 Text file busy
+            systemctl stop img2svg
             cp "$RELEASE/img2svg" /usr/local/bin/img2svg
             cp "$RELEASE/bin/vtracer" /usr/local/bin/vtracer
-            systemctl restart img2svg
+            systemctl start img2svg
             # 健康检查
             sleep 3
             curl -fsS "http://localhost:${{ secrets.IMG2SVG_PORT || '4003' }}/api/health" || {
