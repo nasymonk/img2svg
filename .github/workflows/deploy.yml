@@ -97,6 +97,8 @@ jobs:
               rm -rf /srv/img2svg/current
             fi
             ln -sfn "$RELEASE" /srv/img2svg/current
+            # 移除旧的二进制/ symlink，避免 cp 解析为同一文件
+            rm -f /usr/local/bin/img2svg
             cp "$RELEASE/img2svg" /usr/local/bin/img2svg
             systemctl start img2svg
             # 清理旧 release，保留最近 3 个
