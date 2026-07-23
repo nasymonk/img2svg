@@ -22,7 +22,7 @@ type Service struct {
 	timeout time.Duration
 }
 
-func New(_, dataDir string) *Service {
+func New(dataDir string) *Service {
 	return &Service{dataDir: dataDir, timeout: 120 * time.Second}
 }
 
@@ -112,7 +112,7 @@ func (s *Service) Convert(inputPath string, _ Params) (string, error) {
 	return outPath, nil
 }
 
-func (s *Service) CheckVtracer() error {
+func (s *Service) CheckDeps() error {
 	if err := exec.Command("convert", "-version").Run(); err != nil {
 		return fmt.Errorf("ImageMagick 不可用: %w", err)
 	}

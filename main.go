@@ -31,9 +31,9 @@ func main() {
 	defer store.Close()
 
 	// 转换器
-	convSvc := converter.New(cfg.VtracerPath, cfg.DataDir)
-	if err := convSvc.CheckVtracer(); err != nil {
-		log.Printf("⚠ vtracer 不可用: %v", err)
+	convSvc := converter.New(cfg.DataDir)
+	if err := convSvc.CheckDeps(); err != nil {
+		log.Printf("⚠ 依赖检查不通过: %v", err)
 	}
 
 	// 导出

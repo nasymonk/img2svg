@@ -41,13 +41,12 @@ npm run build     # 构建到 web/dist
 |------|------|------|
 | `PORT` | 否 | 服务端口，默认 4003 |
 | `DATA_DIR` | 否 | 数据目录，默认 ./data |
-| `VTRACER_PATH` | 否 | vtracer 二进制路径，默认 ./bin/vtracer |
 
 ## 部署
 
 GitHub Actions CI/CD：
 1. push 到 `main` → 测试 → 构建前端 → 构建 Go → SCP 到 ECS → systemd 重启
-2. vtracer 二进制在 CI 中从 GitHub Releases 下载（仅做启动可用性检查）
+2. 每次部署保留最近 3 个 release，旧版本自动清理
 
 服务器路径：
 - 二进制: `/usr/local/bin/img2svg`

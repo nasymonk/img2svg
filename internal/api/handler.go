@@ -205,7 +205,7 @@ func (h *Handler) History(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) Health(w http.ResponseWriter, r *http.Request) {
-	ok := h.converter.CheckVtracer() == nil
+	ok := h.converter.CheckDeps() == nil
 	writeJSON(w, http.StatusOK, map[string]interface{}{
 		"status": "ok",
 		"ready":  ok,

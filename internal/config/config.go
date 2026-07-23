@@ -6,16 +6,14 @@ import (
 )
 
 type Config struct {
-	Port        string
-	DataDir     string
-	VtracerPath string // vtracer 二进制路径
+	Port    string
+	DataDir string
 }
 
 func Load() *Config {
 	cfg := &Config{
-		Port:        envOrDefault("PORT", "4003"),
-		DataDir:     envOrDefault("DATA_DIR", "./data"),
-		VtracerPath: envOrDefault("VTRACER_PATH", "./bin/vtracer"),
+		Port:    envOrDefault("PORT", "4003"),
+		DataDir: envOrDefault("DATA_DIR", "./data"),
 	}
 	// 确保数据目录存在
 	os.MkdirAll(filepath.Join(cfg.DataDir, "tmp"), 0755)

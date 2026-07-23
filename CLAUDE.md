@@ -37,7 +37,7 @@ npm run dev       # http://localhost:5173，代理到 :4003
 3. 每层调用 `potrace` 描边，合并为多色分层 SVG。
 4. `internal/export/export.go` 负责 EPS/PDF 导出。
 
-`vtracer` 仅在启动时由 `converter.New()` 做一次可用性检查并打印警告，实际 `Convert()` 不再调用它。CI 中下载 vtracer 二进制是历史残留，不要误把它重新接入转换流程。
+`potrace` 与 `convert`(ImageMagick)是仅有的外部依赖，启动时通过 `CheckDeps()` 做可用性检查。
 
 ### 目录要点
 
@@ -56,13 +56,12 @@ npm run dev       # http://localhost:5173，代理到 :4003
 |------|------|--------|------|
 | `PORT` | 否 | `4003` | 服务端口 |
 | `DATA_DIR` | 否 | `./data` | 数据/临时目录 |
-| `VTRACER_PATH` | 否 | `./bin/vtracer` | 残留启动检查用，vtracer 不再参与转换 |
 
 ## 部署
 
 目标服务器：ECS `8.130.214.67`(`ssh ecs`)，systemd 服务 `img2svg.service`，域名 `svg.rootfly.xyz`。
 
-GitHub Actions `deploy.yml` 流程：go test → 前端构建 → go build → scp 到 ECS → systemd 重启。
+GitHub Actions `deploy.yml` 流程：go test → 前端构建 → go build → scp 到 ECS → systemd 重启。每次部署保留最近 3 个 release，旧版本自动清理。
 
 服务器路径：
 - 二进制: `/usr/local/bin/img2svg`
@@ -73,4 +72,3 @@ GitHub Actions `deploy.yml` 流程：go test → 前端构建 → go build → s
 
 - 改矢量化效果 → `internal/converter/converter.go` 与 `internal/preprocess/preprocess.go`。
 - 改前端 → `web/src/`。
-- 不要恢复 `vtracer` 到转换主路径；如需删除残留，应同步更新 CI 与 README。

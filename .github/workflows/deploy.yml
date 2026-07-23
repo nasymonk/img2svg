@@ -67,12 +67,6 @@ jobs:
           npm ci
           npm run build
 
-      - name: Download vtracer
-        run: |
-          mkdir -p bin
-          curl -sSL "https://github.com/visioncortex/vtracer/releases/download/v0.10.0/vtracer-x86_64-linux-musl" -o bin/vtracer
-          chmod +x bin/vtracer
-
       - name: Build Go binary
         run: |
           GOOS=linux GOARCH=amd64 go build -o img2svg .
@@ -83,7 +77,7 @@ jobs:
           host: ${{ secrets.IMG2SVG_SERVER }}
           username: ${{ secrets.IMG2SVG_USER }}
           key: ${{ secrets.IMG2SVG_SSH_KEY }}
-          source: "img2svg,bin/vtracer"
+          source: "img2svg"
           target: "/srv/img2svg/releases/${{ github.sha }}/"
 
       - name: Restart service
@@ -96,13 +90,17 @@ jobs:
             set -e
             RELEASE="/srv/img2svg/releases/${{ github.sha }}"
             chmod +x "$RELEASE/img2svg"
-            # 创建或更新 symlink
-            ln -sfn "$RELEASE" /srv/img2svg/current
             # 先停止服务，避免覆盖运行中的二进制时报 Text file busy
             systemctl stop img2svg
+            # 移除旧的 current 目录（如果误创建为目录而非 symlink）
+            if [ -d /srv/img2svg/current ] && [ ! -L /srv/img2svg/current ]; then
+              rm -rf /srv/img2svg/current
+            fi
+            ln -sfn "$RELEASE" /srv/img2svg/current
             cp "$RELEASE/img2svg" /usr/local/bin/img2svg
-            cp "$RELEASE/bin/vtracer" /usr/local/bin/vtracer
             systemctl start img2svg
+            # 清理旧 release，保留最近 3 个
+            ls -1dt /srv/img2svg/releases/*/ 2>/dev/null | tail -n +4 | xargs -r rm -rf
             # 健康检查
             sleep 3
             curl -fsS "http://localhost:${{ secrets.IMG2SVG_PORT || '4003' }}/api/health" || {
